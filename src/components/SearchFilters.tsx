@@ -1,12 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Checkbox } from './ui/checkbox'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Collapsible, CollapsibleContent } from './ui/collapsible'
 import { X, ChevronDown, Heart } from 'lucide-react'
-
-
 
 interface Filters {
   radius: string[]
@@ -18,13 +16,19 @@ interface SearchFiltersProps {
   onFiltersChange: (filters: Filters) => void
   showFavoritesOnly?: boolean
   onToggleFavorites?: (value: boolean) => void
+  forceOpen?: boolean // на ПК всегда открыто
 }
 
-export function SearchFilters({ onFiltersChange, showFavoritesOnly = false, onToggleFavorites }: SearchFiltersProps) {
+export function SearchFilters({ onFiltersChange, showFavoritesOnly = false, onToggleFavorites, forceOpen = false }: SearchFiltersProps) {
   const [radius, setRadius] = useState<string[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [categories, setCategories] = useState<string[]>([])
   const [isOpen, setIsOpen] = useState(true)
+
+  // на ПК всегда открыто
+  useEffect(() => {
+    if (forceOpen) setIsOpen(true)
+  }, [forceOpen])
 
   const radiusOptions = [
     { id: '500m', label: '500 м' },
@@ -58,7 +62,7 @@ export function SearchFilters({ onFiltersChange, showFavoritesOnly = false, onTo
         ? [...prev, value]
         : prev.filter(item => item !== value)
       
-      // Обновляем фильтры сразу
+      // обновляем фильтры сразу
       onFiltersChange({
         radius: setState === setRadius ? newState : radius,
         tags: setState === setTags ? newState : tags,
@@ -78,7 +82,7 @@ export function SearchFilters({ onFiltersChange, showFavoritesOnly = false, onTo
 
   const hasActiveFilters = radius.length > 0 || tags.length > 0 || categories.length > 0
 
-  // Создаём массив для отображения активных фильтров в заголовке
+  // активные фильтры для отображения
   const activeBadges = [
     ...radius.map(r => radiusOptions.find(o => o.id === r)?.label).filter(Boolean),
     ...tags.map(t => tagOptions.find(o => o.id === t)?.label).filter(Boolean),
@@ -87,46 +91,61 @@ export function SearchFilters({ onFiltersChange, showFavoritesOnly = false, onTo
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <CardTitle>Фильтры</CardTitle>
-            <div className="flex items-center gap-2">
-              {hasActiveFilters && isOpen && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearAllFilters}
-                  className="text-muted-foreground h-8"
-                >
-                  <X className="w-4 h-4 mr-1" />
-                  Очистить
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsOpen(!isOpen)}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-              </Button>
-            </div>
-          </div>
-
-          {/* Когда панель закрыта, показываем выбранные фильтры */}
-          {!isOpen && activeBadges.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {activeBadges.map((label, idx) => (
-                <Badge key={idx} variant="secondary" className="text-xs">
-                  {label}
-                </Badge>
-              ))}
-            </div>
+     <CardHeader className="pb-3">
+  {/* Верхний блок фильтров кликабельный */}
+  <div
+    className="flex flex-col gap-1 cursor-pointer select-none"
+    onClick={() => !forceOpen && setIsOpen(prev => !prev)}
+  >
+    <div className="flex items-center justify-between">
+      <CardTitle>Фильтры</CardTitle>
+      <div className="flex items-center gap-2">
+        {/* Кнопка Очистить */}
+        <div className="h-8 flex items-center">
+          {hasActiveFilters ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); clearAllFilters() }} // останавливаем всплытие
+              className="text-muted-foreground h-8"
+            >
+              <X className="w-4 h-4 mr-1" />
+              Очистить
+            </Button>
+          ) : (
+            // резервируем место на ПК
+            forceOpen && <div className="w-20" />
           )}
         </div>
-      </CardHeader>
-      
+
+        {/* Кнопка стрелка */}
+        {!forceOpen && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); setIsOpen(prev => !prev) }} // останавливаем всплытие
+            className="h-8 w-8 p-0"
+          >
+            <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          </Button>
+        )}
+      </div>
+    </div>
+
+    {/* При закрытой панели показываем выбранные фильтры только на мобилке */}
+    {!isOpen && !forceOpen && activeBadges.length > 0 && (
+      <div className="flex flex-wrap gap-1 mt-1">
+        {activeBadges.map((label, idx) => (
+          <Badge key={idx} variant="secondary" className="text-xs">
+            {label}
+          </Badge>
+        ))}
+      </div>
+    )}
+  </div>
+</CardHeader>
+
+
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleContent>
           <CardContent className="space-y-6">

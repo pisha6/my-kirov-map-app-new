@@ -111,12 +111,11 @@ export default function App() {
     return R * c
   }
 
-  const parseDistance = (distanceStr: string): number => {
+   const parseDistance = (distanceStr: string) => {
     const match = distanceStr.match(/(\d+(?:\.\d+)?)\s*(м|км)/)
     if (!match) return 0
     const value = parseFloat(match[1])
-    const unit = match[2]
-    return unit === 'км' ? value * 1000 : value
+    return match[2] === 'км' ? value * 1000 : value
   }
 
   // ------------------------
@@ -240,68 +239,122 @@ export default function App() {
   // ------------------------
   // Рендер контента
   // ------------------------
-  const renderContent = () => {
-    switch (currentTab) {
-      case "explore":
-        const filteredPlaces = getFilteredPlaces()
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div className="lg:col-span-1">
-              <SearchFilters
-                onFiltersChange={handleFiltersChange}
-                showFavoritesOnly={showFavoritesOnly}
-                onToggleFavorites={setShowFavoritesOnly}
+ const [isMobile, setIsMobile] = useState<boolean>(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+ const renderExplore = () => {
+  const filteredPlaces = getFilteredPlaces();
+
+  if (isMobile) {
+    // На телефоне фильтры идут после header
+    return (
+      <div className="space-y-6">
+        <SearchFilters
+          onFiltersChange={handleFiltersChange}
+          showFavoritesOnly={showFavoritesOnly}
+          onToggleFavorites={setShowFavoritesOnly}
+          forceOpen={!isMobile} 
+        />
+        <div>
+          <h2>Найдено мест: {filteredPlaces.length}</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredPlaces.map((place) => (
+              <PlaceCard
+                key={place.id}
+                place={place}
+                onNavigate={handleNavigateToPlace}
+                onAddToRoute={handleAddToRoute}
+                onToggleFavorite={handleToggleFavorite}
+                onMarkVisited={handleMarkVisited}
+                isInRoute={currentRoute.some((p) => p.id === place.id)}
               />
-            </div>
-            <div className="lg:col-span-3">
-              <div className="mb-4 flex items-center justify-between">
-                <h2>Найдено мест: {filteredPlaces.length}</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredPlaces.map((place) => (
-                  <PlaceCard
-                    key={place.id}
-                    place={place}
-                    onNavigate={handleNavigateToPlace}
-                    onAddToRoute={handleAddToRoute}
-                    onToggleFavorite={handleToggleFavorite}
-                    onMarkVisited={handleMarkVisited}
-                    isInRoute={currentRoute.some(p => p.id === place.id)}
-                  />
-                ))}
-              </div>
-            </div>
+            ))}
           </div>
-        )
-      case "collections":
-        return (
-          <Collections
-            onCollectionSelect={handleCollectionSelect}
-            collectionComments={collectionComments}
-            onAddComment={handleAddCollectionComment}
-            places={places}
-            onNavigateToPlace={handleNavigateToPlace}
-            onAddToRoute={handleAddToRoute}
-            onToggleFavorite={handleToggleFavorite}
-            currentRoute={currentRoute}
+        </div>
+      </div>
+    );
+  } else {
+    // На ноуте фильтры слева, всегда открыты, фиксированная ширина
+    return (
+      <div className="flex gap-6">
+        {/* Левая колонка под фильтры */}
+        <div className="w-64 flex-shrink-0">
+          <SearchFilters
+            onFiltersChange={handleFiltersChange}
+            showFavoritesOnly={showFavoritesOnly}
+            onToggleFavorites={setShowFavoritesOnly}
+            forceOpen // фильтр всегда открыт на ПК
           />
-        )
-      case "map":
-        return (
-          <MapView
-            currentRoute={currentRoute}
-            userLocation={userLocation}
-            onRemoveFromRoute={handleRemoveFromRoute}
-            onClearRoute={handleClearRoute}
-            onNavigateToRoute={handleNavigateToRoute}
-          />
-        )
-      case "achievements":
-        return <Achievements userStats={userStats} />
-      default:
-        return null
-    }
+        </div>
+
+        {/* Основная колонка с карточками */}
+        <div className="flex-1">
+          <h2>Найдено мест: {filteredPlaces.length}</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredPlaces.map((place) => (
+              <PlaceCard
+                key={place.id}
+                place={place}
+                onNavigate={handleNavigateToPlace}
+                onAddToRoute={handleAddToRoute}
+                onToggleFavorite={handleToggleFavorite}
+                onMarkVisited={handleMarkVisited}
+                isInRoute={currentRoute.some((p) => p.id === place.id)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
+};
+
+
+const renderContent = () => {
+  switch (currentTab) {
+    case "explore": return renderExplore()
+    case "collections":
+      return (
+        <Collections
+          onCollectionSelect={(collection) => {
+            toast(`Открываю коллекцию "${collection.title}"`)
+            setCurrentTab("explore")
+          }}
+          collectionComments={collectionComments}
+          onAddComment={(collectionId, comment) => {
+            const isNewComment = !collectionComments[collectionId]
+            setCollectionComments(prev => ({ ...prev, [collectionId]: comment }))
+            if (isNewComment) setUserStats(prev => ({ ...prev, collectionComments: prev.collectionComments + 1 }))
+            toast("Комментарий к коллекции сохранен")
+          }}
+          places={places}
+          onNavigateToPlace={handleNavigateToPlace}
+          onAddToRoute={handleAddToRoute}
+          onToggleFavorite={handleToggleFavorite}
+          currentRoute={currentRoute}
+        />
+      )
+    case "map":
+      return (
+        <MapView
+          currentRoute={currentRoute}
+          userLocation={userLocation}
+          onRemoveFromRoute={handleRemoveFromRoute}
+          onClearRoute={handleClearRoute}
+          onNavigateToRoute={handleNavigateToRoute}
+        />
+      )
+    case "achievements":
+      return <Achievements userStats={userStats} />
+    default: return null
+  }
+}
+
 
   // ------------------------
   // Количество разблокированных достижений
